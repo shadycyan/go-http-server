@@ -15,16 +15,22 @@ func main() {
 		os.Exit(1)
 	}
 	defer l.Close()
-
 	fmt.Println("Server listening on port 42069")
 
-	conn, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			continue
+		}
+		fmt.Println("Client connected:", conn.RemoteAddr())
+
+		go handleConnection(conn)
 	}
+}
+
+func handleConnection(conn net.Conn) {
 	defer conn.Close()
-	fmt.Println("Client connected:", conn.RemoteAddr())
 
 	reader := bufio.NewReader(conn)
 
