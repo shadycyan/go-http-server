@@ -50,5 +50,9 @@ func main() {
 		response = "HTTP/1.1 200 OK\r\n\r\n"
 	}
 
+	if str, found := strings.CutPrefix(path, "/echo/"); found {
+		response += fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(str), str)
+	}
+
 	conn.Write([]byte(response))
 }
