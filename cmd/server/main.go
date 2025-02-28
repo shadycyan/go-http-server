@@ -51,7 +51,30 @@ func main() {
 	}
 
 	if str, found := strings.CutPrefix(path, "/echo/"); found {
-		response += fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(str), str)
+		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(str), str)
+	}
+
+	headers := make(map[string]string)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Error reading headers:", err)
+			return
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			break
+		}
+		headerParts := strings.SplitN(line, ":", 2)
+		if len(headerParts) == 2 {
+			headers[strings.TrimSpace(headerParts[0])] = strings.TrimSpace(headerParts[1])
+		}
+	}
+	fmt.Println("Headers:", headers)
+
+	if path == "/user-agent" {
+		userAgent, _ := headers["User-Agent"]
+		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(userAgent), userAgent)
 	}
 
 	conn.Write([]byte(response))
