@@ -2,11 +2,14 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -60,12 +63,6 @@ func handleRequest(conn net.Conn) {
 		return
 	}
 
-	if str, found := strings.CutPrefix(path, "/echo/"); method == "GET" && found {
-		response := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(str), str)
-		conn.Write([]byte(response))
-		return
-	}
-
 	headers, err := parseHeaders(reader)
 	if err != nil {
 		response := "HTTP/1.1 400 Bad Request\r\n\r\n"
@@ -82,9 +79,30 @@ func handleRequest(conn net.Conn) {
 	}
 	fmt.Println("Body:", body)
 
+	if str, found := strings.CutPrefix(path, "/echo/"); method == "GET" && found {
+		acceptEncoding := headers["Accept-Encoding"]
+		acceptEncodingValues := strings.Split(acceptEncoding, ",")
+
+		if !slices.Contains(acceptEncodingValues, "gzip") {
+			conn.Write([]byte(str))
+			return
+		}
+
+		compressed, err := gzipCompress(str)
+		if err != nil {
+			fmt.Println("Error compressing response body:", err)
+			response := "HTTP/1.1 500 Internal Server Error\r\n\r\n"
+			conn.Write([]byte(response))
+			return
+		}
+
+		conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\nContent-Length: " + strconv.Itoa(len(compressed)) + "\r\n\r\n"))
+		conn.Write(compressed)
+	}
+
 	if method == "GET" && path == "/user-agent" {
-		userAgent, _ := headers["User-Agent"]
-		response := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(userAgent), userAgent)
+		userAgent := headers["User-Agent"]
+		response := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nAccept-Encoding: \r\n%s", len(userAgent), userAgent)
 		conn.Write([]byte(response))
 		return
 	}
@@ -127,13 +145,19 @@ func parseHeaders(reader *bufio.Reader) (map[string]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("Error reading headers: %w", err)
 		}
+
 		line = strings.TrimSpace(line)
+
 		if line == "" {
 			break
 		}
-		headerParts := strings.SplitN(line, ":", 2)
-		if len(headerParts) == 2 {
-			headers[strings.TrimSpace(headerParts[0])] = strings.TrimSpace(headerParts[1])
+
+		headerField := strings.SplitN(line, ":", 2)
+		fieldName := strings.TrimSpace(headerField[0])
+		fieldValue := strings.TrimSpace(headerField[1])
+
+		if len(headerField) == 2 {
+			headers[fieldName] = fieldValue
 		}
 	}
 
@@ -158,4 +182,15 @@ func parseBody(reader *bufio.Reader, headers map[string]string) (string, error) 
 	}
 
 	return string(bodyBytes), nil
+}
+
+func gzipCompress(data string) ([]byte, error) {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	_, err := gz.Write([]byte(data))
+	if err != nil {
+		return nil, err
+	}
+	gz.Close()
+	return buf.Bytes(), nil
 }
