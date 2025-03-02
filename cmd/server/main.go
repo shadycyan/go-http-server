@@ -96,13 +96,19 @@ func handleRequest(conn net.Conn) {
 			return
 		}
 
-		conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\nContent-Length: " + strconv.Itoa(len(compressed)) + "\r\n\r\n"))
-		conn.Write(compressed)
+		response := fmt.Sprintf(
+			"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\nContent-Length: %d\r\n\r\n%s",
+			len(compressed), string(compressed),
+		)
+		conn.Write([]byte(response))
 	}
 
 	if method == "GET" && path == "/user-agent" {
 		userAgent := headers["User-Agent"]
-		response := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nAccept-Encoding: \r\n%s", len(userAgent), userAgent)
+		response := fmt.Sprintf(
+			"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nAccept-Encoding: \r\n%s",
+			len(userAgent), userAgent,
+		)
 		conn.Write([]byte(response))
 		return
 	}
@@ -136,6 +142,9 @@ func handleRequest(conn net.Conn) {
 
 		conn.Write([]byte(response))
 	}
+
+	response := "HTTP/1.1 404 Not Found\r\n\r\n"
+	conn.Write([]byte(response))
 }
 
 func parseHeaders(reader *bufio.Reader) (map[string]string, error) {
