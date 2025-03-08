@@ -1,3 +1,3 @@
-module github.com/shadycyan/go-http-server
+module github.com/shadycyan/http-server
 
 go 1.24.0
